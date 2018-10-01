@@ -9,6 +9,7 @@
 #include <linux/string.h>
 #include <linux/gfp.h>
 #include <linux/slab.h>
+#include <asm/uaccess.h>
 
 
 static dev_t first;
@@ -17,11 +18,11 @@ static struct class *cl;
 
 struct file* dump_file = NULL;
 
-static int my_open(struct inode *i, struct file *f){
+static int my_open(struct inode *i, struct file *f) {
 	printk(KERN_INFO "Driver: open()\n");
 	return 0;
 }
-static int my_close(struct inode *i, struct file *f){
+static int my_close(struct inode *i, struct file *f) {
 	printk(KERN_INFO "Driver: close()\n");
 	return 0;
 }
@@ -29,7 +30,6 @@ static ssize_t my_read(struct file *f, char __user *buf, size_t len, loff_t *off
 	printk(KERN_INFO "Driver: read()\n");
 	return 0;
 }
-
 
 static bool is_command_open(const char __user *buf,  size_t len) {
 	if (len >4) {
@@ -53,25 +53,30 @@ static bool is_command_close(const char __user *buf,  size_t len) {
 	}
 	return false;
 }
+
 static ssize_t my_write(struct file *f, const char __user *buf,  size_t len, loff_t *off) {
 	printk(KERN_INFO "Driver: write(%s) with length %ld\n", buf, len);
 	if (dump_file == NULL) {
 		if (is_command_open(buf, len)) {
 			char* dump_name = buf + 5;
-			printk(KERN_INFO "Got open for %s", dump_name);
-			struct file *dump;
-			dump = filp_open(dump_name, O_WRONLY|O_CREAT, 0644);
-			dump_file = dump;
-			return len;
-		}
-	}
-	if (is_command_close(buf, len)) {
-		printk(KERN_INFO "Got close");
-		if (dump_file == NULL) {
-			printk(KERN_INFO "Error: No open file");
+			dump_file = filp_open(dump_name, O_CREAT, 0644);
 		} else {
+			printk(KERN_INFO "Error: No open file");
+		}
+	} else {
+		if (is_command_close(buf, len)) {
 			filp_close(dump_file, NULL);
 			dump_file = NULL;
+		} else {
+			mm_segment_t fs;
+			fs = get_fs();
+        	set_fs(get_ds());
+			size_t write = dump_file->f_op->write(f, buf, len, &f->f_pos);
+			while (write < len && write >= 0) {
+				write += dump_file->f_op->write(f, buf + write, len - write, &f->f_pos);
+			}
+			set_fs(fs);
+			printk(KERN_INFO "%ld", write);
 		}
 	}
 	return len;
@@ -84,20 +89,21 @@ static struct file_operations mychdev_fops = {
 	.read = my_read,
 	.write = my_write
 };
-static int __init ch_drv_init(void){
+
+static int __init ch_drv_init(void) {
 	printk(KERN_INFO "Hello!\n");
-	if (alloc_chrdev_region(&first, 0, 1, "ch_dev") < 0){
+	if (alloc_chrdev_region(&first, 0, 1, "ch_dev") < 0) {
 		printk(KERN_INFO "ch_dev not allocated\n");
 		return -1;
 	}
 	printk(KERN_INFO "ch_dev allocated\n");
-	if ((cl = class_create(THIS_MODULE, "chardrv")) == NULL){
+	if ((cl = class_create(THIS_MODULE, "chardrv")) == NULL) {
 		printk(KERN_INFO "chardrv not created\n");
 		unregister_chrdev_region(first, 1);
 		return -1;
 	}
 	printk(KERN_INFO "chardrv created\n");
-	if (device_create(cl, NULL, first, NULL, "var1") == NULL){
+	if (device_create(cl, NULL, first, NULL, "var1") == NULL) {
 		printk(KERN_INFO "mychdev not created\n");
 		class_destroy(cl);
 		unregister_chrdev_region(first, 1);
@@ -106,7 +112,7 @@ static int __init ch_drv_init(void){
 	printk(KERN_INFO "mychdev created\n");
 
 	cdev_init(&c_dev, &mychdev_fops);
-	if (cdev_add(&c_dev, first, 1) == -1){
+	if (cdev_add(&c_dev, first, 1) == -1) {
 		device_destroy(cl, first);
 		class_destroy(cl);
 		unregister_chrdev_region(first, 1);
@@ -114,7 +120,7 @@ static int __init ch_drv_init(void){
 	}
 return 0;
 }
-static void __exit ch_drv_exit(void){
+static void __exit ch_drv_exit(void) {
 	cdev_del(&c_dev);
 	device_destroy(cl, first);
 	class_destroy(cl);
