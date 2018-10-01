@@ -22,17 +22,16 @@ static int my_open(struct inode *i, struct file *f) {
 	return 0;
 }
 static int my_close(struct inode *i, struct file *f) {
+	printk(KERN_DEBUG "");
 	return 0;
 }
 static ssize_t my_read(struct file *f, char __user *buf, size_t len, loff_t *off) {
-	size_t read = 0;
-    if (dump_file != NULL) {
-    	read = vfs_read(dump_file, buf, len, off);
-		printk(KERN_INFO "%s", buf);
+	if (dump_file != NULL) {
+		vfs_read(dump_file, buf, len, off);
+		printk(KERN_INFO "CHAR_DEV_1: %s", buf);
 	} else {
-		printk(KERN_INFO "Error: No open file");
+		printk(KERN_ERR "CHAR_DEV_1: No open file");
 	}
-	printk(KERN_DEBUG "");
 	return 0;
 }
 
@@ -63,10 +62,9 @@ static void write_to_file(const char __user *buf,  size_t len) {
 	char* str = kmalloc(6, GFP_USER);
 	mm_segment_t oldfs;
 	size_t write = 0;
-    oldfs = get_fs();
-    set_fs(get_ds());
+	oldfs = get_fs();
+	set_fs(get_ds());
 	sprintf(str, "%ld", len);
-	printk(KERN_INFO "Debug: trying to write %s, lenght %ld", str, strlen(str));
 	write = vfs_write(dump_file, str, strlen(str), &dump_file->f_pos);
 	set_fs(oldfs);
 	kfree(str);
@@ -77,7 +75,7 @@ static ssize_t my_write(struct file *f, const char __user *buf,  size_t len, lof
 		if (is_command_open(buf, len)) {
 			dump_file = filp_open(buf + 5, O_RDWR|O_CREAT|O_APPEND, 0644);
 		} else {
-			printk(KERN_INFO "Error: No open file");
+			printk(KERN_ERR "CHAR_DEV_1: No open file");
 		}
 	} else {
 		if (is_command_close(buf, len)) {
@@ -99,25 +97,18 @@ static struct file_operations mychdev_fops = {
 };
 
 static int __init ch_drv_init(void) {
-	printk(KERN_INFO "Hello!\n");
 	if (alloc_chrdev_region(&first, 0, 1, "ch_dev") < 0) {
-		printk(KERN_INFO "ch_dev not allocated\n");
 		return -1;
 	}
-	printk(KERN_INFO "ch_dev allocated\n");
 	if ((cl = class_create(THIS_MODULE, "chardrv")) == NULL) {
-		printk(KERN_INFO "chardrv not created\n");
 		unregister_chrdev_region(first, 1);
 		return -1;
 	}
-	printk(KERN_INFO "chardrv created\n");
 	if (device_create(cl, NULL, first, NULL, "var1") == NULL) {
-		printk(KERN_INFO "mychdev not created\n");
 		class_destroy(cl);
 		unregister_chrdev_region(first, 1);
 		return -1;
 	}
-	printk(KERN_INFO "mychdev created\n");
 
 	cdev_init(&c_dev, &mychdev_fops);
 	if (cdev_add(&c_dev, first, 1) == -1) {
@@ -133,7 +124,6 @@ static void __exit ch_drv_exit(void) {
 	device_destroy(cl, first);
 	class_destroy(cl);
 	unregister_chrdev_region(first, 1);
-	printk(KERN_INFO "Bye!!!\n");
 }
 module_init(ch_drv_init);
 module_exit(ch_drv_exit);
