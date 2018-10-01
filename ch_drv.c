@@ -19,15 +19,20 @@ static struct class *cl;
 struct file* dump_file = NULL;
 
 static int my_open(struct inode *i, struct file *f) {
-	printk(KERN_INFO "Driver: open()\n");
 	return 0;
 }
 static int my_close(struct inode *i, struct file *f) {
-	printk(KERN_INFO "Driver: close()\n");
 	return 0;
 }
 static ssize_t my_read(struct file *f, char __user *buf, size_t len, loff_t *off) {
-	printk(KERN_INFO "Driver: read()\n");
+	size_t read = 0;
+    if (dump_file != NULL) {
+    	read = vfs_read(dump_file, buf, len, off);
+		printk(KERN_INFO "%s", buf);
+	} else {
+		printk(KERN_INFO "Error: No open file");
+	}
+	printk(KERN_DEBUG "");
 	return 0;
 }
 
@@ -54,12 +59,23 @@ static bool is_command_close(const char __user *buf,  size_t len) {
 	return false;
 }
 
+static void write_to_file(const char __user *buf,  size_t len) {
+	char* str = kmalloc(6, GFP_USER);
+	mm_segment_t oldfs;
+	size_t write = 0;
+    oldfs = get_fs();
+    set_fs(get_ds());
+	sprintf(str, "%ld", len);
+	printk(KERN_INFO "Debug: trying to write %s, lenght %ld", str, strlen(str));
+	write = vfs_write(dump_file, str, strlen(str), &dump_file->f_pos);
+	set_fs(oldfs);
+	kfree(str);
+} 
+
 static ssize_t my_write(struct file *f, const char __user *buf,  size_t len, loff_t *off) {
-	printk(KERN_INFO "Driver: write(%s) with length %ld\n", buf, len);
 	if (dump_file == NULL) {
 		if (is_command_open(buf, len)) {
-			char* dump_name = buf + 5;
-			dump_file = filp_open(dump_name, O_CREAT, 0644);
+			dump_file = filp_open(buf + 5, O_RDWR|O_CREAT|O_APPEND, 0644);
 		} else {
 			printk(KERN_INFO "Error: No open file");
 		}
@@ -68,15 +84,7 @@ static ssize_t my_write(struct file *f, const char __user *buf,  size_t len, lof
 			filp_close(dump_file, NULL);
 			dump_file = NULL;
 		} else {
-			mm_segment_t fs;
-			fs = get_fs();
-        	set_fs(get_ds());
-			size_t write = dump_file->f_op->write(f, buf, len, &f->f_pos);
-			while (write < len && write >= 0) {
-				write += dump_file->f_op->write(f, buf + write, len - write, &f->f_pos);
-			}
-			set_fs(fs);
-			printk(KERN_INFO "%ld", write);
+			write_to_file(buf, len);
 		}
 	}
 	return len;

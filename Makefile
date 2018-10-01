@@ -5,4 +5,7 @@ all:
 clean:
 	make -C /lib/modules/$(shell uname -r)/build M="$(PWD)" clean
 reload:
-	rmmod ch_drv && insmod ch_drv.ko && chmod 777 /dev/var1
+	rmmod ch_drv && insmod ch_drv.ko 
+	chmod 777 /dev/var1
+	echo -n "open new_file" > /dev/var1
+	cat /dev/var1
