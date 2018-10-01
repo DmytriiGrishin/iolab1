@@ -22,15 +22,14 @@ static int my_open(struct inode *i, struct file *f) {
 	return 0;
 }
 static int my_close(struct inode *i, struct file *f) {
-	printk(KERN_DEBUG "");
 	return 0;
 }
 static ssize_t my_read(struct file *f, char __user *buf, size_t len, loff_t *off) {
 	if (dump_file != NULL) {
 		vfs_read(dump_file, buf, len, off);
-		printk(KERN_INFO "CHAR_DEV_1: %s", buf);
+		printk(KERN_INFO "CHAR_DEV_1: %s\n", buf);
 	} else {
-		printk(KERN_ERR "CHAR_DEV_1: No open file");
+		printk(KERN_ERR "CHAR_DEV_1: No open file\n");
 	}
 	return 0;
 }
@@ -75,7 +74,7 @@ static ssize_t my_write(struct file *f, const char __user *buf,  size_t len, lof
 		if (is_command_open(buf, len)) {
 			dump_file = filp_open(buf + 5, O_RDWR|O_CREAT|O_APPEND, 0644);
 		} else {
-			printk(KERN_ERR "CHAR_DEV_1: No open file");
+			printk(KERN_ERR "CHAR_DEV_1: No open file\n");
 		}
 	} else {
 		if (is_command_close(buf, len)) {
