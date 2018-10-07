@@ -35,26 +35,20 @@ static ssize_t my_read(struct file *f, char __user *buf, size_t len, loff_t *off
 }
 
 static bool is_command_open(const char __user *buf,  size_t len) {
-	if (len >4) {
-		if (buf[0] == 'o' 
-			&& buf[1] == 'p'
-			&& buf[2] == 'e'
-			&& buf[3] == 'n')
-			return true;
-	}
-	return false;
+	return len >4
+	   	&& buf[0] == 'o' 
+		&& buf[1] == 'p'
+		&& buf[2] == 'e'
+		&& buf[3] == 'n';
 }
 
 static bool is_command_close(const char __user *buf,  size_t len) {
-	if (len >= 5) {
-		if (buf[0] == 'c' 
+	return len >= 5 
+			&& buf[0] == 'c' 
 			&& buf[1] == 'l'
 			&& buf[2] == 'o'
 			&& buf[3] == 's'
-			&& buf[4] == 'e')
-			return true;
-	}
-	return false;
+			&& buf[4] == 'e';
 }
 
 static void write_to_file(const char __user *buf,  size_t len) {
